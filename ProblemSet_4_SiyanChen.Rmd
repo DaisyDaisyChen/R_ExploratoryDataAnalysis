@@ -1,0 +1,170 @@
+---
+title: "ANLY 512 - Problem Set 4"
+subtitle: "Exploratory Data Analysis"
+author: "Siyan Chen"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+
+# Objectives
+
+The objective of this assingment is to conduct an exploratory data analysis of a data set that you are not familiar with.  In this weeks lecture we discussed a number of visualiation approaches to exploring a data set, this assignment will apply those tools and techniques.  An important distinction between class examples and applied data science work is that interative and repetitive nature of exploring a data set.  It takes time and understand what is is the data and what is interesting in the data. 
+
+For this week we will be exploring data from the NYC Data Transparnecy Initiative.  They maintain a database of complaints that fall within the Civilian Complain Review Board (CCRB), an independent municiple agency.  Your objective is to identify interesting patterns and trends within the data that may be indicative of large scale trends.  
+
+This [link](http://www1.nyc.gov/assets/ccrb/downloads/excel/ccrb_datatransparencyinitiative.xlsx) will allow you to download the data set in `.xlsx` format.  The data file has two tabs: one with metadata, and the "Complaints_Allegations" tab with the actual data.  
+
+#Section 1: Exploratory Data Analysis (EDA)
+
+```{r}
+#Library packages and read dataset
+library(ggplot2)
+library(ggthemes)
+library(readxl)
+library(dplyr)
+
+ccrb <- read_excel("ccrb_datatransparencyinitiative.xlsx", sheet = 2)
+ccrb_df <- data.frame(ccrb)
+str(ccrb_df)
+```
+
+##Graph 1: Numeber of Complaints received in each year 
+To look at the trend of number of complaints received over time.
+```{r}
+ccrb_df_case <- ccrb_df %>%
+  group_by(Received.Year) %>%
+  summarize(num_case = n_distinct(UniqueComplaintId)) %>%
+  select(Received.Year, num_case)
+
+ggplot(data= ccrb_df_case, aes(x = Received.Year, y = num_case)) +
+  geom_line(size = 0.5) +
+  theme_economist() +
+  labs(title = 'Figure 1: Complaints Received in Each Year',
+       x = 'Year',
+       y = 'Complaints Received')
+```
+
+##Graph2: Number of complaints received each year, class by complaint filed mode
+To look at the trend of each complaint mode in each year.
+```{r}
+ggplot(ccrb_df, aes(x = Received.Year, fill=Complaint.Filed.Mode))+
+  geom_bar(stat = "count")+
+  labs(title = "Figure 2: Number of complaints received each year", 
+       x = "Received Year", 
+       y = "Number of Complaints")
+```
+
+##Graph 3: Summary of Complaint Geography Location and Investigation Situation
+To look at which borough has received largest number of complaints, and the proportion of full investigation. 
+```{r}
+ggplot(data = ccrb_df, aes(x = Borough.of.Occurrence, fill = Is.Full.Investigation )) + 
+  geom_bar(stat = 'count') + 
+  labs(title = 'Figure 3: Borough of Occurrence and Investigation Situation for Complaints', x = 'Borough of Occurrence') +
+  scale_fill_discrete(name = 'Full Investigation or Not') 
+```
+
+##Graph 4: Incident Location by Borough
+To look at the proportions of incident location in each borough.  
+```{r}
+ggplot(ccrb_df, aes(x=Borough.of.Occurrence, fill=Incident.Location)) + 
+  geom_histogram(stat = "count") + 
+  labs(title="Figure 4: Incident Location of Complaints by Borough ", x="Borough", y="Number of Complaints") +
+  scale_fill_discrete(name="Incident Location")
+```
+
+##Graph 5: Trends of complaints turning into full investigation
+To look at proportion of full investigation in each year and its tendency. 
+```{r}
+ggplot(ccrb_df, aes(x=Received.Year, fill=Is.Full.Investigation)) + 
+  geom_histogram(stat = "count") + 
+  labs(title="Figure 5: Full Investigation by Year", x="Year", y="Number of Complaints") +
+  scale_fill_discrete(name="Full Investigation")
+```
+
+##Graph 6: % of Encounter Outcomes in each allegation type
+To look at the percentage of encounter outcomes in each type of allegation.
+```{r}
+ggplot(ccrb_df, aes(x=Allegation.FADO.Type, fill=Encounter.Outcome)) + 
+  geom_bar(aes(y=(..count..)/sum(..count..))) + 
+  labs(title="Figure 6: % of Encounter Outcomes in each allegation type", x="Allegation Type", y="Number of Complaints") +
+  scale_fill_discrete(name="Encounter Outcome")
+```
+
+##Graph 7: Proportion of whether complaint has video evidence or not
+To look at proportion of whether complaint has video evidence or not.
+```{r}
+videoyes = sapply( ccrb_df$Complaint.Has.Video.Evidence, FUN = function(x){length(x[x=="TRUE"])})
+videoy <- sum(videoyes)
+videono = sapply( ccrb_df$Complaint.Has.Video.Evidence, FUN = function(x){length(x[x=="FALSE"])})
+videon <- sum(videono)
+
+group = c("videoyes", "videono")
+proportion = c(sum(videoyes)/(sum(videoyes)+sum(videono)),sum(videono)/(sum(videoyes)+sum(videono)))
+video_df <- data.frame(group,proportion)
+head(video_df)
+library(ggplot2)
+library(scales)
+pie<- ggplot(video_df, aes(x="", y=proportion, fill=group))+
+  geom_bar(width = 1, stat = "identity")+
+  coord_polar("y", start=0)+
+  geom_text(aes(x = c(1, 1.2), y = proportion/2 + c(0, cumsum(proportion)[-length(proportion)]), label = percent(proportion)), size = 5)+
+  labs(title="Figure 7: Proportion of whether complaint has video evidence or not")
+pie
+```
+
+##Graph 8: Length of time the complaints being processed
+To summary how long did complaints being processed.
+```{r}
+timedif <- ccrb_df %>% 
+                distinct(UniqueComplaintId, .keep_all = TRUE) %>%
+                mutate(time_length = Close.Year - Received.Year)
+
+ggplot(data = timedif, aes(x = time_length)) + 
+  geom_bar(width = 0.5, alpha = 0.5) + 
+  labs(title = 'Figure 8: Length of time the complaints be processed', x = 'Time Length (Years)')
+```
+
+##Graph 9: Number of Incidents happened in each year
+To look at the trend of number of incidents happened in each year.
+```{r}
+ccrb_df_case <- ccrb_df %>% 
+  group_by(Incident.Year) %>%
+  summarize(num_case = n_distinct(UniqueComplaintId)) %>%
+  select(Incident.Year, num_case)
+
+ggplot(data = ccrb_df_case, aes(x = Incident.Year, y = num_case)) +
+  geom_line(size = 0.5)+
+  theme_economist() +
+  labs(title = 'Figure 9: Incident happened in each year', 
+       x = 'Year',
+       y = 'Number of Incidents')
+```
+
+##Graph 10: % of Encounter Outcomes by Borough
+To look at the percentage of encounter outcomes in each borough.
+```{r}
+ggplot(ccrb_df, aes(x=Borough.of.Occurrence, fill=Encounter.Outcome)) + 
+  geom_bar(aes(y=(..count..)/sum(..count..))) + 
+  labs(title="Figure 10: % of Encounter Outcomes by Borough", x="Encounter Outcome", y="Number of Complaints") +
+  scale_fill_discrete(name="Encounter Outcome")
+```
+
+
+#Section 2: Summary
+Before 2006, number of complaints received each year is very small. It is likely with the reason that the system of Civilian Complain Review Board is not popular at that time. Ingoring this possibility, after 2006, number of complaints received each year was gradually decreased. (Figure 1) Simiarly, incidents happened in each year was gradually decreased. (Figure 9) For the decreased complaints, using phone to make a complaint is the most used way, but using mail is the least used way. (Figure 2)
+
+Looking at the location of complaint occurrence, most of complaints happened in Brooklyn (Figure 3), specifically happened on street/highway (Figure 4). 
+
+Less than half of complaints in most of boroughs has been turned into full investigation (Figure 3). However, the number of complaints turned into full investagation has little larger than that have not been turned before 2007. After 2007, more were failed to be turned into full investigation. (Figure 5)
+
+Abuse of authority occupies the highest percenage in allegtion types, but most of cases do not arrest or summons related personnel. Force has the second largest proportion of allegation types, with most encounter outcomes is arrest. (Figure 6) However, most cases' encounter outcomes in each borough has similar percetages in arrest and no arrest.(Figure 10)
+
+Only 4.3% of complaints have provided video evidence (Figure 7). In addition, most of complaint cases being processed within one year. (Figure 8)
+
+
+
+
+
+
+
